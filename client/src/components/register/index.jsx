@@ -103,7 +103,7 @@ export default function Login() {
             )}
 
             <Stack spacing={3} sx={{mt: 5}}>
-                <Copyright/>
+                
             </Stack> 
           </ContentStyle>
         </Container>

@@ -93,7 +93,7 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
     </Scrollbar> 
      <Box sx={{display:'flex', flexDirection: 'column'}} > 
         <Box sx={{marginTop:'auto', pb:2}}>
-          <Copyright/>
+          
         </Box>
       </Box> 
       </>
