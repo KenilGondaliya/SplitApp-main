@@ -144,30 +144,23 @@ exports.verifyPayment = async (req, res) => {
       group.split = [{}];
     }
 
-    // Log initial balances for debugging
     logger.info(`Initial split: ${JSON.stringify(group.split[0])}`);
 
-    // Update split: settleFrom pays settleTo
-    // settleFrom's debt decreases (add the amount paid), settleTo's credit decreases (subtract the amount received)
-    group.split[0][settleFrom] = (group.split[0][settleFrom] || 0) + amount; // Increase settleFrom's balance (reduce debt)
-    group.split[0][settleTo] = (group.split[0][settleTo] || 0) - amount; // Decrease settleTo's balance (reduce credit)
+    group.split[0][settleFrom] = (group.split[0][settleFrom] || 0) + amount;
+    group.split[0][settleTo] = (group.split[0][settleTo] || 0) - amount;
 
-    // Clean up zero balances
     if (group.split[0][settleFrom] === 0) delete group.split[0][settleFrom];
     if (group.split[0][settleTo] === 0) delete group.split[0][settleTo];
 
-    // Log updated balances for debugging
     logger.info(
       `Updated split after payment: ${JSON.stringify(group.split[0])}`
     );
 
-    // Save group changes explicitly
     await model.Group.updateOne(
       { _id: group._id },
       { $set: { split: group.split } }
     );
 
-    // Handle expense or settlement logic
     const expense = await model.Expense.findOne({
       groupId: settlement.groupId,
       expenseOwner: settleFrom,
@@ -177,14 +170,12 @@ exports.verifyPayment = async (req, res) => {
     if (expense) {
       const remainingAmount = expense.expenseAmount - amount;
       if (remainingAmount <= 0) {
-        // Full payment: delete expense and settlement
         await model.Expense.deleteOne({ _id: expense._id });
         await model.Settlement.deleteOne({ _id: settlement._id });
         logger.info(
           `Full payment: Expense ${expense._id} and Settlement ${settlement._id} deleted`
         );
       } else {
-        // Partial payment: update expense and settlement
         expense.expenseAmount = remainingAmount;
         expense.expensePerMember =
           remainingAmount / expense.expenseMembers.length;
@@ -206,7 +197,6 @@ exports.verifyPayment = async (req, res) => {
         settleAmount: remainingAmount > 0 ? remainingAmount : 0,
       });
     } else {
-      // No expense, just settlement
       if (amount >= settlement.settleAmount) {
         await model.Settlement.deleteOne({ _id: settlement._id });
         logger.info(`Full payment: Settlement ${settlement._id} deleted`);
