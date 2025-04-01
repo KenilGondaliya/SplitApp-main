@@ -12,10 +12,7 @@ exports.getAllUsers = async (req, res) => {
     const users = await model.User.find({}, { password: 0 })
       .skip(skip)
       .limit(limit);
-
-    console.log(users);
-    
-
+      
     const total = await model.User.countDocuments();
 
     res.status(200).json({
