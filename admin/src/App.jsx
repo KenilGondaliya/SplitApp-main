@@ -1,9 +1,11 @@
-import "./App.css";
+import AdminPanel from "./pages/AdminPanel";
 
 function App() {
-  return <>
-    <h1 className="text-3xl">Admin</h1>
-  </>;
+  return (
+    <div>
+      <AdminPanel />
+    </div>
+  );
 }
 
 export default App;

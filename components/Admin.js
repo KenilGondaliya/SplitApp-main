@@ -13,6 +13,9 @@ exports.getAllUsers = async (req, res) => {
       .skip(skip)
       .limit(limit);
 
+    console.log(users);
+    
+
     const total = await model.User.countDocuments();
 
     res.status(200).json({
