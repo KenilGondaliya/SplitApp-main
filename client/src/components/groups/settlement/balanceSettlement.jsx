@@ -111,7 +111,7 @@ const BalanceSettlement = ({
         const orderData = orderResponse.data;
 
         const options = {
-          key: process.env.REACT_APP_RAZORPAY_KEY_ID, // Ensure this is set in your .env
+          key: orderData.key_id, // Use key_id from backend response
           amount: orderData.amount,
           currency: orderData.currency,
           name: "Expense Settlement",
@@ -134,10 +134,10 @@ const BalanceSettlement = ({
 
             if (verifyResponse?.data.status === "Success") {
               setSettleSuccess(true);
-              setReload(true); // Trigger parent refresh
+              setReload(true);
               setTimeout(() => {
-                handleClose(); // Close modal after success
-              }, 1500); // Delay to show success message
+                handleClose();
+              }, 1500);
             } else {
               throw new Error(
                 verifyResponse?.data?.message || "Payment verification failed"

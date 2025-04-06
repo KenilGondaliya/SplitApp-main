@@ -4,12 +4,15 @@ const logger = require("../helper/logger");
 const { addSplit, clearSplit } = require("./group");
 const Razorpay = require("razorpay");
 const crypto = require("crypto");
+require('dotenv').config();
+
+console.log('Razorpay Key ID:', process.env.RAZORPAY_KEY_ID);
+console.log('Razorpay Key Secret:', process.env.RAZORPAY_KEY_SECRET);
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
-
 /*
 Add Expense function
 This function is used to add expense to the group 
@@ -23,35 +26,17 @@ Accepts: Group ID not null group ID exist in the DB
 
 exports.createPaymentOrder = async (req, res) => {
   try {
-    const {
-      amount,
-      currency = "INR",
-      settleTo,
-      settleFrom,
-      groupId,
-    } = req.body;
+    const { amount, currency = "INR", settleTo, settleFrom, groupId } = req.body;
 
-    if (!groupId) {
-      const err = new Error("Group ID is required");
-      err.status = 400;
-      throw err;
-    }
+    // Validate input
+    if (!groupId) throw new Error("Group ID is required");
+    if (!amount || amount <= 0) throw new Error("Valid amount is required");
 
     const group = await model.Group.findOne({ _id: groupId });
-    if (!group) {
-      const err = new Error("Invalid Group Id");
-      err.status = 400;
-      throw err;
-    }
+    if (!group) throw new Error("Invalid Group Id");
 
-    if (
-      !Array.isArray(group.groupMembers) ||
-      !group.groupMembers.includes(settleFrom) ||
-      !group.groupMembers.includes(settleTo)
-    ) {
-      const err = new Error("Settling users must be group members");
-      err.status = 400;
-      throw err;
+    if (!group.groupMembers.includes(settleFrom) || !group.groupMembers.includes(settleTo)) {
+      throw new Error("Settling users must be group members");
     }
 
     const options = {
@@ -62,22 +47,20 @@ exports.createPaymentOrder = async (req, res) => {
     };
 
     const order = await razorpay.orders.create(options);
-    const settleDate = new Date().toISOString();
     const settlement = new model.Settlement({
       groupId,
       settleTo,
       settleFrom,
       settleAmount: amount,
-      settleDate,
+      settleDate: new Date().toISOString(),
     });
     await settlement.save();
 
-    logger.info(
-      `Payment order created: Order ID ${order.id}, Settlement ID ${settlement._id}`
-    );
+    logger.info(`Payment order created: Order ID ${order.id}, Settlement ID ${settlement._id}`);
 
     res.status(200).json({
       status: "Success",
+      key_id: process.env.RAZORPAY_KEY_ID, // Add key_id to response
       order_id: order.id,
       amount: order.amount,
       currency: order.currency,
@@ -86,14 +69,11 @@ exports.createPaymentOrder = async (req, res) => {
       settlementId: settlement._id.toString(),
     });
   } catch (err) {
-    logger.error(
-      `URL: ${req.originalUrl} | Status: ${err.status || 500} | Message: ${
-        err.message
-      } | Stack: ${err.stack}`
-    );
-    res.status(err.status || 500).json({ message: err.message });
+    logger.error(`Error in createPaymentOrder: ${err.message}`);
+    res.status(400).json({ message: err.message });
   }
 };
+
 
 exports.verifyPayment = async (req, res) => {
   try {
@@ -107,7 +87,14 @@ exports.verifyPayment = async (req, res) => {
       settlementId,
     } = req.body;
 
-    // Verify Razorpay signature
+    // console.log(req.body);
+
+    if (!process.env.RAZORPAY_KEY_SECRET) {
+      const err = new Error("Razorpay secret key is not configured");
+      err.status = 500;
+      throw err;
+    }
+
     const generatedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
       .update(razorpay_order_id + "|" + razorpay_payment_id)
@@ -119,7 +106,6 @@ exports.verifyPayment = async (req, res) => {
       throw err;
     }
 
-    // Fetch settlement and group
     const settlement = await model.Settlement.findOne({ _id: settlementId });
     if (!settlement) {
       const err = new Error("Settlement record not found");
@@ -134,7 +120,6 @@ exports.verifyPayment = async (req, res) => {
       throw err;
     }
 
-    // Initialize split if invalid
     if (
       !Array.isArray(group.split) ||
       group.split.length === 0 ||
@@ -152,9 +137,7 @@ exports.verifyPayment = async (req, res) => {
     if (group.split[0][settleFrom] === 0) delete group.split[0][settleFrom];
     if (group.split[0][settleTo] === 0) delete group.split[0][settleTo];
 
-    logger.info(
-      `Updated split after payment: ${JSON.stringify(group.split[0])}`
-    );
+    logger.info(`Updated split after payment: ${JSON.stringify(group.split[0])}`);
 
     await model.Group.updateOne(
       { _id: group._id },
@@ -177,8 +160,7 @@ exports.verifyPayment = async (req, res) => {
         );
       } else {
         expense.expenseAmount = remainingAmount;
-        expense.expensePerMember =
-          remainingAmount / expense.expenseMembers.length;
+        expense.expensePerMember = remainingAmount / expense.expenseMembers.length;
         settlement.settleAmount = remainingAmount;
         await expense.save();
         await settlement.save();
@@ -220,13 +202,13 @@ exports.verifyPayment = async (req, res) => {
     }
   } catch (err) {
     logger.error(
-      `URL: ${req.originalUrl} | Status: ${err.status || 500} | Message: ${
-        err.message
-      } | Stack: ${err.stack}`
+      `URL: ${req.originalUrl} | Status: ${err.status || 500} | Message: ${err.message} | Stack: ${err.stack}`
     );
     res.status(err.status || 500).json({ message: err.message });
   }
 };
+
+
 
 exports.addExpense = async (req, res) => {
   try {
